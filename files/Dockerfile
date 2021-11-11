@@ -21,12 +21,26 @@ RUN echo "deb http://snapshot.debian.org/archive/debian/$(date +%Y%m%d) buster c
       v4l-utils \
       motion \
       default-libmysqlclient-dev && \
-    # Change uid/gid of user/group motion to match our desired IDs.  This will
-    # make it easier to use execute motion as our desired user later.
-    pip install motioneye && \
+      pip install motioneye && \
     # Cleanup
     apt-get purge --yes python-setuptools python-wheel && \
     apt-get autoremove --yes
+
+ADD motioneye.conf.sample /usr/share/motioneye/extra/
+
+# R/W needed for motioneye to update configurations
+VOLUME /etc/motioneye
+
+# Video & images
+VOLUME /var/lib/motioneye
+
+CMD test -e /etc/motioneye/motioneye.conf || \
+    cp /usr/share/motioneye/extra/motioneye.conf.sample /etc/motioneye/motioneye.conf ; \
+    # We need to chown at startup time since volumes are mounted as root. This is fugly.
+    chown motion:motion /var/run /var/log /etc/motioneye /var/lib/motioneye /usr/share/motioneye/extra ; \
+    su -g motion motion -s /bin/bash -c "/usr/local/bin/meyectl startserver -c /etc/motioneye/motioneye.conf"
+
+EXPOSE 8765
 
 FROM debian:buster-slim
 WORKDIR /app/motioneye

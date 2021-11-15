@@ -1,0 +1,19 @@
+---
+- name: Install MotionEye to server
+  hosts: kitchen-eye
+  tasks:
+    - name: Install Docker
+      cmd: curl -fsSL https://test.docker.com -o test-docker.sh
+    
+    - name: Create motion group
+      group:
+        name: "motion"
+        state: present
+
+    - name: Create motion user
+      user:
+        name: "motion"
+        state: present
+
+    - name: Install Docker Image
+       

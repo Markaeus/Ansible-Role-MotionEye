@@ -1,19 +1,33 @@
 ---
-- name: Install MotionEye to server
-  hosts: kitchen-eye
-  tasks:
-    - name: Install Docker
-      cmd: curl -fsSL https://test.docker.com -o test-docker.sh
-    
-    - name: Create motion group
-      group:
-        name: "motion"
-        state: present
+- name: Install Docker
+  command: curl -fsSL https://test.docker.com -o test-docker.sh
 
-    - name: Create motion user
-      user:
-        name: "motion"
-        state: present
+- name: Create motion group
+  group:
+    name: "motion"
+    state: present
 
-    - name: Install Docker Image
-       
+- name: Create motion user
+  user:
+    name: "motion"
+    state: present
+- name: make store folder
+  file:
+    path: ~/surv
+    state: directory
+
+- name: Install Docker Image
+  docker_container:
+    name: motion_eye
+    image: markaeus/motioneye:latest
+    state: present
+
+- name: Run Docker Image
+  docker_container:
+    name: motion-eye
+    image: markaeus/motioneye:latest
+    detach: true
+    interactive: true
+    tty: true
+    network_mode: "host"
+    privileged: true

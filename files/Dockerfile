@@ -1,47 +1,61 @@
-FROM debian:buster-slim AS builder
-WORKDIR /app/motioneye/
-RUN echo "deb http://snapshot.debian.org/archive/debian/$(date +%Y%m%d) buster contrib non-free" >>/etc/apt/sources.list && \
-    apt-get update && \
-    DEBIAN_FRONTEND="noninteractive" apt-get -t buster --yes --option Dpkg::Options::="--force-confnew" --no-install-recommends install \
-      curl \
-      ffmpeg \
-      libmicrohttpd12 \
-      libpq5 \
-      lsb-release \
-      mosquitto-clients \
-      python-jinja2 \
-      python-pil \
-      python-pip \
-      python-pip-whl \
-      python-pycurl \
-      python-setuptools \
-      python-tornado \
-      python-tz \
-      python-wheel \
-      v4l-utils \
-      motion \
-      default-libmysqlclient-dev && \
-      pip install motioneye && \
-    # Cleanup
-    apt-get purge --yes python-setuptools python-wheel && \
-    apt-get autoremove --yes
+FROM multiarch/debian-debootstrap:armhf-stretch
 
-ADD motioneye.conf.sample /usr/share/motioneye/extra/
+COPY . /tmp/motioneye
+ENV LD_LIBRARY_PATH /opt/vc/lib
+
+RUN apt-get update && \
+    apt-get upgrade --yes && \
+    DEBIAN_FRONTEND="noninteractive" apt-get --yes --option Dpkg::Options::="--force-confnew" --no-install-recommends install \
+    curl \
+    ffmpeg \
+    git \
+    libmariadbclient18 \
+    libmicrohttpd12 \
+    libpq5 \
+    lsb-release \
+    mosquitto-clients \
+    python-jinja2 \
+    python-pil \
+    python-pip \
+    python-pycurl \
+    python-setuptools \
+    python-tornado \
+    python-tz \
+    python-wheel \
+    tzdata \
+    v4l-utils \
+    zlib1g-dev && \
+    git clone --depth 1 https://github.com/Hexxeh/rpi-firmware.git /tmp/rpi-firmware && \
+    cp -rv /tmp/rpi-firmware/vc/hardfp/opt/vc /opt && \
+    rm -rf /tmp/rpi-firmware && \
+    ln -sf /opt/vc/bin/vcgencmd /usr/bin/vcgencmd && \
+    curl -L --output /tmp/motion.deb https://github.com/Motion-Project/motion/releases/download/release-4.2.2/pi_stretch_motion_4.2.2-1_armhf.deb && \
+    dpkg -i /tmp/motion.deb && \
+    rm /tmp/motion.deb && \
+    pip install /tmp/motioneye && \
+    rm -rf /tmp/motioneye && \
+    apt-get purge --yes \
+    git \
+    python-pip \
+    python-setuptools \
+    python-wheel && \
+    apt-get autoremove --yes && \
+    apt-get --yes clean && rm -rf /var/lib/apt/lists/* && rm -f /var/cache/apt/*.bin
 
 # R/W needed for motioneye to update configurations
 VOLUME /etc/motioneye
 
+# PIDs
+VOLUME /var/run/motion
+
 # Video & images
 VOLUME /var/lib/motioneye
 
-CMD test -e /etc/motioneye/motioneye.conf || \
+ADD extra/motioneye.conf.sample /usr/share/motioneye/extra/
+
+CMD test -e /etc/motioneye/motioneye.conf || \    
     cp /usr/share/motioneye/extra/motioneye.conf.sample /etc/motioneye/motioneye.conf ; \
-    # We need to chown at startup time since volumes are mounted as root. This is fugly.
-    chown motion:motion /var/run /var/log /etc/motioneye /var/lib/motioneye /usr/share/motioneye/extra ; \
-    su -g motion motion -s /bin/bash -c "/usr/local/bin/meyectl startserver -c /etc/motioneye/motioneye.conf"
+    /usr/local/bin/meyectl startserver -c /etc/motioneye/motioneye.conf
 
 EXPOSE 8765
 
-FROM debian:buster-slim
-WORKDIR /app/motioneye
-COPY --from=builder /app/motioneye /app/motioneye
